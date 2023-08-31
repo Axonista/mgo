@@ -57,7 +57,7 @@ type mongoSocket struct {
     IsClosed    bool
 }
 
-var idleTimeout = time.Minute * 5
+
 
 type queryOpFlags uint32
 
@@ -210,8 +210,7 @@ func (socket *mongoSocket) Server() *mongoServer {
 	return server
 }
 
-// ServerInfo returns details for the server at the time the socket
-// was initially acquired.
+// Is called from methods that call the server, queries, etc . It sets the LastActive time to time.Now
 func (socket *mongoSocket) ActiveSocket()  {
 	socket.Lock()
 	socket.LastActive: time.Now(),
