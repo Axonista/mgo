@@ -1,1 +1,3 @@
 _harness/*
+main.go
+go.mod

@@ -213,8 +213,8 @@ func (socket *mongoSocket) Server() *mongoServer {
 // Is called from methods that call the server, queries, etc . It sets the LastActive time to time.Now
 func (socket *mongoSocket) ActiveSocket()  {
 	socket.Lock()
-	socket.LastActive: time.Now(),
-	socket.IsClosed:   false,
+	socket.LastActive  = time.Now()
+	socket.IsClosed =  false
 	socket.Unlock()
 	return nill
 }
