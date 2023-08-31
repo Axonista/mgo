@@ -213,6 +213,26 @@ func (server *mongoServer) RecycleSocket(socket *mongoSocket) {
 	server.Unlock()
 }
 
+var idleTimeout = 60 //seconds
+
+//New. This will be called by a timer function
+func (server *mongoServer) closeIdleSockets(sockets []*mongoSocket) []*mongoSocket {
+	server.Lock()
+	if server.closed {
+		server.Unlock()
+		return
+	}
+    for i, s := range sockets {
+        if !s.IsClosed && time.Since(s.LastActive).Seconds() > idleTimeout {
+            //fmt.Println("Closing idle socket")
+            s.IsClosed = true
+            removeSocket(sockets, s) //Use existing removeSocket functionality 
+        }
+    }
+	server.Unlock()
+}
+
+
 func removeSocket(sockets []*mongoSocket, socket *mongoSocket) []*mongoSocket {
 	for i, s := range sockets {
 		if s == socket {

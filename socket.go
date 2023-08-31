@@ -53,7 +53,11 @@ type mongoSocket struct {
 	gotNonce      sync.Cond
 	dead          error
 	serverInfo    *mongoServerInfo
+	LastActive  time.Time  // to track open but inactive connections
+    IsClosed    bool
 }
+
+var idleTimeout = time.Minute * 5
 
 type queryOpFlags uint32
 
@@ -129,6 +133,7 @@ func (op *queryOp) finalQuery(socket *mongoSocket) interface{} {
 		debugf("final query is %#v\n", &op.options)
 		return &op.options
 	}
+	socket.ActiveSocket()
 	return op.query
 }
 
@@ -192,6 +197,7 @@ func newSocket(server *mongoServer, conn net.Conn, timeout time.Duration) *mongo
 	debugf("Socket %p to %s: initialized", socket, socket.addr)
 	socket.resetNonce()
 	go socket.readLoop()
+	socket.ActiveSocket()
 	return socket
 }
 
@@ -206,11 +212,12 @@ func (socket *mongoSocket) Server() *mongoServer {
 
 // ServerInfo returns details for the server at the time the socket
 // was initially acquired.
-func (socket *mongoSocket) ServerInfo() *mongoServerInfo {
+func (socket *mongoSocket) ActiveSocket()  {
 	socket.Lock()
-	serverInfo := socket.serverInfo
+	socket.LastActive: time.Now(),
+	socket.IsClosed:   false,
 	socket.Unlock()
-	return serverInfo
+	return nill
 }
 
 // InitialAcquire obtains the first reference to the socket, either
@@ -232,6 +239,7 @@ func (socket *mongoSocket) InitialAcquire(serverInfo *mongoServerInfo, timeout t
 	stats.socketsInUse(+1)
 	stats.socketRefs(+1)
 	socket.Unlock()
+	socket.ActiveSocket()
 	return nil
 }
 
@@ -249,6 +257,7 @@ func (socket *mongoSocket) Acquire() (info *mongoServerInfo) {
 	stats.socketRefs(+1)
 	serverInfo := socket.serverInfo
 	socket.Unlock()
+	socket.ActiveSocket()
 	return serverInfo
 }
 
@@ -273,6 +282,7 @@ func (socket *mongoSocket) Release() {
 	} else {
 		socket.Unlock()
 	}
+	socket.ActiveSocket()
 }
 
 // SetTimeout changes the timeout used on socket operations.
@@ -309,6 +319,7 @@ func (socket *mongoSocket) updateDeadline(which deadlineType) {
 		panic("invalid parameter to updateDeadline")
 	}
 	debugf("Socket %p to %s: updated %s deadline to %s ahead (%s)", socket, socket.addr, whichstr, socket.timeout, when)
+	socket.ActiveSocket()
 }
 
 // Close terminates the socket use.
@@ -369,6 +380,7 @@ func (socket *mongoSocket) SimpleQuery(op *queryOp) (data []byte, err error) {
 	data = replyData
 	err = replyErr
 	change.Unlock()
+	socket.ActiveSocket()
 	return data, err
 }
 
@@ -527,6 +539,7 @@ func (socket *mongoSocket) Query(ops ...interface{}) (err error) {
 		socket.updateDeadline(readDeadline)
 	}
 	socket.Unlock()
+	socket.ActiveSocket()
 	return err
 }
 
@@ -640,6 +653,7 @@ func (socket *mongoSocket) readLoop() {
 		}
 		socket.Unlock()
 
+		socket.ActiveSocket()
 		// XXX Do bound checking against totalLen.
 	}
 }
